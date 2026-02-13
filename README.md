@@ -92,8 +92,17 @@ docker compose up -d --build
 
 ## 1) Install dependencies
 
+Install `uv` once (if needed):
+
 ```bash
-/home/m.isangulov@innopolis.ru/chem_bench/.venv/bin/pip install -r /home/m.isangulov@innopolis.ru/chem_bench/requirements.txt
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+Then sync project dependencies:
+
+```bash
+cd /home/m.isangulov@innopolis.ru/vllm_manager
+uv sync
 ```
 
 ## 2) Start both vLLM containers (sleep-mode enabled)
@@ -118,7 +127,7 @@ DEFAULT_ACTIVE_MODEL=gemma \
 
 ```bash
 cd /home/m.isangulov@innopolis.ru
-/home/m.isangulov@innopolis.ru/chem_bench/.venv/bin/uvicorn \
+uv run uvicorn \
   vllm_manager.app:app \
   --host 0.0.0.0 \
   --port 8010

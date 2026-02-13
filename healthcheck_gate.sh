@@ -29,6 +29,38 @@ wait_http_200() {
   return 1
 }
 
+wait_active_backend_ready() {
+  while (( SECONDS < deadline )); do
+    local response
+    response="$(curl -sS --max-time 4 "$MANAGER_URL/status" || true)"
+    if [[ -z "$response" ]]; then
+      sleep "$POLL_SECONDS"
+      continue
+    fi
+    if STATUS_JSON="$response" python3 - <<'PY'
+import json
+import os
+import sys
+
+obj = json.loads(os.environ["STATUS_JSON"])
+active_key = obj.get("active_model_key")
+models = obj.get("models") or {}
+active = models.get(active_key) or {}
+healthy = active.get("healthy")
+if healthy is True:
+    print(f"[gate] active backend healthy: key={active_key} model={active.get('model_id')}")
+    sys.exit(0)
+sys.exit(1)
+PY
+    then
+      return 0
+    fi
+    sleep "$POLL_SECONDS"
+  done
+  log "timeout waiting for active backend health"
+  return 1
+}
+
 chat_smoke() {
   local label="$1"
   log "chat smoke test: $label"
@@ -96,6 +128,7 @@ PY
 log "starting healthcheck gate against $MANAGER_URL"
 wait_http_200 "$MANAGER_URL/health" "manager"
 wait_http_200 "$MANAGER_URL/status" "manager status"
+wait_active_backend_ready
 
 chat_smoke "initial active"
 
