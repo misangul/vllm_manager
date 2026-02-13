@@ -1,0 +1,123 @@
+services:
+  chemdfm-vllm:
+    image: vllm/vllm-openai:latest
+    container_name: chemdfm-vllm-managed
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["${GPU_DEVICE:-0}"]
+              capabilities: ["gpu"]
+    environment:
+      VLLM_SERVER_DEV_MODE: "1"
+      HF_TOKEN: "${HF_TOKEN:-}"
+    ports:
+      - "${CHEM_HOST_PORT:-8011}:8000"
+    shm_size: "${VLLM_SHM_SIZE:-2g}"
+    ulimits:
+      memlock: -1
+      stack: 67108864
+    volumes:
+      - "${HF_CACHE_DIR:-${HOME}/models}:/root/.cache/huggingface"
+    command:
+      - "OpenDFM/ChemDFM-R-14B"
+      - "--dtype"
+      - "auto"
+      - "--trust-remote-code"
+      - "--enable-sleep-mode"
+      - "--gpu-memory-utilization"
+      - "${CHEM_GPU_MEMORY_UTILIZATION:-0.90}"
+      - "--max-model-len"
+      - "${CHEM_MAX_MODEL_LEN:-8192}"
+
+  bootstrap:
+    image: curlimages/curl:8.12.1
+    container_name: vllm-bootstrap
+    restart: "no"
+    depends_on:
+      - chemdfm-vllm
+    command:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        echo "Waiting for ChemDFM health..."
+        for i in $$(seq 1 600); do
+          code="$$(curl -s -o /dev/null -w "%{http_code}" http://chemdfm-vllm:8000/health || true)"
+          if [ "$$code" = "200" ]; then
+            break
+          fi
+          sleep 2
+        done
+        echo "Putting ChemDFM to sleep..."
+        for i in $$(seq 1 180); do
+          sleeping="$$(curl -s --max-time 2 http://chemdfm-vllm:8000/is_sleeping || true)"
+          if echo "$$sleeping" | grep -q '"is_sleeping":true'; then
+            echo "ChemDFM is sleeping."
+            break
+          fi
+          curl -s --max-time 5 -X POST "http://chemdfm-vllm:8000/sleep?level=1" >/dev/null 2>&1 || true
+          sleep 2
+        done
+        echo "Bootstrap finished."
+
+  gemma-vllm:
+    image: vllm/vllm-openai:latest
+    container_name: gemma-vllm-managed
+    restart: unless-stopped
+    depends_on:
+      bootstrap:
+        condition: service_completed_successfully
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["${GPU_DEVICE:-0}"]
+              capabilities: ["gpu"]
+    environment:
+      VLLM_SERVER_DEV_MODE: "1"
+      HF_TOKEN: "${HF_TOKEN:-}"
+    ports:
+      - "${GEMMA_HOST_PORT:-8012}:8000"
+    shm_size: "${VLLM_SHM_SIZE:-2g}"
+    ulimits:
+      memlock: -1
+      stack: 67108864
+    volumes:
+      - "${HF_CACHE_DIR:-${HOME}/models}:/root/.cache/huggingface"
+    entrypoint:
+      - /bin/bash
+      - -lc
+    command:
+      - >
+        vllm serve ${GEMMA_MODEL_ID:-google/gemma-3-27b-it}
+        --dtype auto
+        --trust-remote-code
+        --enable-sleep-mode
+        --gpu-memory-utilization ${GEMMA_GPU_MEMORY_UTILIZATION:-0.75}
+        --max-model-len ${GEMMA_MAX_MODEL_LEN:-4096}
+
+  manager:
+    build:
+      context: ..
+      dockerfile: vllm_manager/Dockerfile
+    container_name: vllm-manager
+    restart: unless-stopped
+    depends_on:
+      - chemdfm-vllm
+      - gemma-vllm
+    environment:
+      MANAGER_HOST: "0.0.0.0"
+      MANAGER_PORT: "8010"
+      ACTIVE_MODEL_KEY: "${ACTIVE_MODEL_KEY:-gemma}"
+      CONTROL_TIMEOUT_SECONDS: "${CONTROL_TIMEOUT_SECONDS:-300}"
+      MANAGE_DOCKER: "false"
+      CHEM_MODEL_ID: "OpenDFM/ChemDFM-R-14B"
+      GEMMA_MODEL_ID: "${GEMMA_MODEL_ID:-google/gemma-3-27b-it}"
+      CHEM_BASE_URL: "http://chemdfm-vllm:8000"
+      GEMMA_BASE_URL: "http://gemma-vllm:8000"
+    ports:
+      - "${MANAGER_PORT:-8010}:8010"
