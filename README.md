@@ -5,7 +5,7 @@ Standalone FastAPI manager that controls two local vLLM containers and exposes a
 ## Managed models
 
 - `chemdfm` -> `OpenDFM/ChemDFM-R-14B`
-- `gemma` -> `google/gemma-3-27b-it` (override with quantized model ID via env)
+- `gemma` -> `RedHatAI/gemma-3-27b-it-quantized.w8a8`
 
 By default:
 
@@ -46,6 +46,12 @@ Compose mode runs manager in a container and routes with internal DNS:
 - `GEMMA_BASE_URL=http://gemma-vllm:8000`
 
 In this mode, manager uses `MANAGE_DOCKER=false` (Compose controls container lifecycle).
+Default memory profile is tuned to keep active model near ~40GB VRAM:
+
+- `CHEM_GPU_MEMORY_UTILIZATION=0.50`
+- `GEMMA_GPU_MEMORY_UTILIZATION=0.50`
+- `CHEM_MAX_MODEL_LEN=4096`
+- `GEMMA_MAX_MODEL_LEN=1024`
 
 ### Compose operations
 
@@ -115,10 +121,9 @@ HF_TOKEN="your_hf_token" ./vllm_manager/start_vllm_pair.sh
 Useful env overrides:
 
 ```bash
-# Example: set quantized Gemma checkpoint and keep Gemma active
+# Example: set Gemma checkpoint and keep Gemma active
 HF_TOKEN="your_hf_token" \
-GEMMA_MODEL_ID="your-org/gemma-3-27b-int8" \
-GEMMA_EXTRA_ARGS="--quantization bitsandbytes --load-format bitsandbytes" \
+GEMMA_MODEL_ID="RedHatAI/gemma-3-27b-it-quantized.w8a8" \
 DEFAULT_ACTIVE_MODEL=gemma \
 ./vllm_manager/start_vllm_pair.sh
 ```
@@ -147,12 +152,12 @@ curl -sS http://127.0.0.1:8010/status
 # Switch to Gemma
 curl -sS -X POST http://127.0.0.1:8010/switch-model \
   -H 'Content-Type: application/json' \
-  -d '{"model_name":"google/gemma-3-27b-it"}'
+  -d '{"model_name":"gemma"}'
 
 # Switch back to ChemDFM
 curl -sS -X POST http://127.0.0.1:8010/switch-model \
   -H 'Content-Type: application/json' \
-  -d '{"model_name":"OpenDFM/ChemDFM-R-14B"}'
+  -d '{"model_name":"chemdfm"}'
 ```
 
 ## 6) Use stable inference endpoint

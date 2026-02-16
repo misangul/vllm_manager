@@ -48,25 +48,25 @@ class Settings:
             container_name=os.getenv("CHEM_CONTAINER_NAME", "chemdfm-vllm-managed"),
             host_port=int(os.getenv("CHEM_HOST_PORT", "8011")),
             base_url_override=os.getenv("CHEM_BASE_URL", ""),
-            max_model_len=int(os.getenv("CHEM_MAX_MODEL_LEN", "8192")),
-            gpu_memory_utilization=float(os.getenv("CHEM_GPU_MEMORY_UTILIZATION", "0.90")),
+            max_model_len=int(os.getenv("CHEM_MAX_MODEL_LEN", "4096")),
+            gpu_memory_utilization=float(os.getenv("CHEM_GPU_MEMORY_UTILIZATION", "0.50")),
             extra_args=os.getenv("CHEM_EXTRA_ARGS", ""),
         )
         gemma_model = ManagedModel(
             key="gemma",
-            model_id=os.getenv("GEMMA_MODEL_ID", "google/gemma-3-27b-it"),
+            model_id=os.getenv("GEMMA_MODEL_ID", "RedHatAI/gemma-3-27b-it-quantized.w8a8"),
             container_name=os.getenv("GEMMA_CONTAINER_NAME", "gemma-vllm-managed"),
             host_port=int(os.getenv("GEMMA_HOST_PORT", "8012")),
             base_url_override=os.getenv("GEMMA_BASE_URL", ""),
-            max_model_len=int(os.getenv("GEMMA_MAX_MODEL_LEN", "4096")),
-            gpu_memory_utilization=float(os.getenv("GEMMA_GPU_MEMORY_UTILIZATION", "0.75")),
+            max_model_len=int(os.getenv("GEMMA_MAX_MODEL_LEN", "1024")),
+            gpu_memory_utilization=float(os.getenv("GEMMA_GPU_MEMORY_UTILIZATION", "0.50")),
             extra_args=os.getenv("GEMMA_EXTRA_ARGS", ""),
         )
         models = {
             chem_model.key: chem_model,
             gemma_model.key: gemma_model,
         }
-        active = os.getenv("ACTIVE_MODEL_KEY", chem_model.key).strip().lower()
+        active = os.getenv("ACTIVE_MODEL_KEY", gemma_model.key).strip().lower()
         if active not in models:
             active = chem_model.key
 
@@ -94,6 +94,7 @@ class Settings:
             self.models["chemdfm"].model_id.lower(): "chemdfm",
             "gemma": "gemma",
             "gemma-3-27b-it": "gemma",
+            "gemma-3-27b-it-awq-int4": "gemma",
             self.models["gemma"].model_id.lower(): "gemma",
         }
         if normalized not in aliases:

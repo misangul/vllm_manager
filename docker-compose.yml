@@ -22,15 +22,15 @@ services:
     volumes:
       - "${HF_CACHE_DIR:-${HOME}/models}:/root/.cache/huggingface"
     command:
-      - "OpenDFM/ChemDFM-R-14B"
+      - "${CHEM_MODEL_ID:-OpenDFM/ChemDFM-R-14B}"
       - "--dtype"
       - "auto"
       - "--trust-remote-code"
       - "--enable-sleep-mode"
       - "--gpu-memory-utilization"
-      - "${CHEM_GPU_MEMORY_UTILIZATION:-0.90}"
+      - "${CHEM_GPU_MEMORY_UTILIZATION:-0.50}"
       - "--max-model-len"
-      - "${CHEM_MAX_MODEL_LEN:-8192}"
+      - "${CHEM_MAX_MODEL_LEN:-4096}"
 
   bootstrap:
     image: curlimages/curl:8.12.1
@@ -93,12 +93,12 @@ services:
       - -lc
     command:
       - >
-        vllm serve ${GEMMA_MODEL_ID:-google/gemma-3-27b-it}
+        vllm serve ${GEMMA_MODEL_ID:-RedHatAI/gemma-3-27b-it-quantized.w8a8}
         --dtype auto
         --trust-remote-code
         --enable-sleep-mode
-        --gpu-memory-utilization ${GEMMA_GPU_MEMORY_UTILIZATION:-0.75}
-        --max-model-len ${GEMMA_MAX_MODEL_LEN:-4096}
+        --gpu-memory-utilization ${GEMMA_GPU_MEMORY_UTILIZATION:-0.50}
+        --max-model-len ${GEMMA_MAX_MODEL_LEN:-1024}
 
   manager:
     build:
@@ -115,8 +115,8 @@ services:
       ACTIVE_MODEL_KEY: "${ACTIVE_MODEL_KEY:-gemma}"
       CONTROL_TIMEOUT_SECONDS: "${CONTROL_TIMEOUT_SECONDS:-300}"
       MANAGE_DOCKER: "false"
-      CHEM_MODEL_ID: "OpenDFM/ChemDFM-R-14B"
-      GEMMA_MODEL_ID: "${GEMMA_MODEL_ID:-google/gemma-3-27b-it}"
+      CHEM_MODEL_ID: "${CHEM_MODEL_ID:-OpenDFM/ChemDFM-R-14B}"
+      GEMMA_MODEL_ID: "${GEMMA_MODEL_ID:-RedHatAI/gemma-3-27b-it-quantized.w8a8}"
       CHEM_BASE_URL: "http://chemdfm-vllm:8000"
       GEMMA_BASE_URL: "http://gemma-vllm:8000"
     ports:
