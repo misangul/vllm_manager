@@ -12,7 +12,6 @@ services:
               capabilities: ["gpu"]
     environment:
       VLLM_SERVER_DEV_MODE: "1"
-      HF_TOKEN: "${HF_TOKEN:-}"
     ports:
       - "${CHEM_HOST_PORT:-8011}:8000"
     shm_size: "${VLLM_SHM_SIZE:-2g}"
@@ -22,7 +21,7 @@ services:
     volumes:
       - "${HF_CACHE_DIR:-${HOME}/models}:/root/.cache/huggingface"
     command:
-      - "${CHEM_MODEL_ID:-OpenDFM/ChemDFM-R-14B}"
+      - "${CHEM_MODEL_LOCAL_PATH:-/root/.cache/huggingface/chemdfm}"
       - "--dtype"
       - "auto"
       - "--trust-remote-code"
@@ -79,7 +78,6 @@ services:
               capabilities: ["gpu"]
     environment:
       VLLM_SERVER_DEV_MODE: "1"
-      HF_TOKEN: "${HF_TOKEN:-}"
     ports:
       - "${GEMMA_HOST_PORT:-8012}:8000"
     shm_size: "${VLLM_SHM_SIZE:-2g}"
@@ -93,7 +91,7 @@ services:
       - -lc
     command:
       - >
-        vllm serve ${GEMMA_MODEL_ID:-RedHatAI/gemma-3-27b-it-quantized.w8a8}
+        vllm serve ${GEMMA_MODEL_LOCAL_PATH:-/root/.cache/huggingface/gemma}
         --dtype auto
         --trust-remote-code
         --enable-sleep-mode

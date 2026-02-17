@@ -8,11 +8,10 @@ VLLM_DOCKER_IMAGE="${VLLM_DOCKER_IMAGE:-vllm/vllm-openai:latest}"
 SHM_SIZE="${VLLM_SHM_SIZE:-2g}"
 MEMLOCK_ULIMIT="${VLLM_MEMLOCK_ULIMIT:--1}"
 STACK_ULIMIT="${VLLM_STACK_ULIMIT:-67108864}"
-HF_TOKEN="${HF_TOKEN:-}"
 
 # ChemDFM defaults
 CHEM_CONTAINER_NAME="${CHEM_CONTAINER_NAME:-chemdfm-vllm-managed}"
-CHEM_MODEL_ID="${CHEM_MODEL_ID:-OpenDFM/ChemDFM-R-14B}"
+CHEM_MODEL_PATH="${CHEM_MODEL_PATH:-/root/.cache/huggingface/chemdfm}"
 CHEM_HOST_PORT="${CHEM_HOST_PORT:-8011}"
 CHEM_MAX_MODEL_LEN="${CHEM_MAX_MODEL_LEN:-4096}"
 CHEM_GPU_MEMORY_UTILIZATION="${CHEM_GPU_MEMORY_UTILIZATION:-0.50}"
@@ -20,7 +19,7 @@ CHEM_EXTRA_ARGS="${CHEM_EXTRA_ARGS:-}"
 
 # Gemma defaults tuned for A100 profile
 GEMMA_CONTAINER_NAME="${GEMMA_CONTAINER_NAME:-gemma-vllm-managed}"
-GEMMA_MODEL_ID="${GEMMA_MODEL_ID:-RedHatAI/gemma-3-27b-it-quantized.w8a8}"
+GEMMA_MODEL_PATH="${GEMMA_MODEL_PATH:-/root/.cache/huggingface/gemma}"
 GEMMA_HOST_PORT="${GEMMA_HOST_PORT:-8012}"
 GEMMA_MAX_MODEL_LEN="${GEMMA_MAX_MODEL_LEN:-1024}"
 GEMMA_GPU_MEMORY_UTILIZATION="${GEMMA_GPU_MEMORY_UTILIZATION:-0.50}"
@@ -37,7 +36,7 @@ mkdir -p "$HF_CACHE_DIR"
 run_container() {
   local name="$1"
   local port="$2"
-  local model_id="$3"
+  local model_path="$3"
   local max_len="$4"
   local gpu_mem="$5"
   local extra_args="$6"
@@ -63,10 +62,9 @@ run_container() {
     --ulimit "memlock=${MEMLOCK_ULIMIT}" \
     --ulimit "stack=${STACK_ULIMIT}" \
     -e "VLLM_SERVER_DEV_MODE=1" \
-    -e "HF_TOKEN=${HF_TOKEN}" \
     -v "${HF_CACHE_DIR}:/root/.cache/huggingface" \
     "$VLLM_DOCKER_IMAGE" \
-    "$model_id" \
+    "$model_path" \
     --dtype auto \
     --trust-remote-code \
     --enable-sleep-mode \
@@ -103,22 +101,22 @@ wake_model() {
 }
 
 echo "Starting vLLM pair on GPU ${GPU_DEVICE}..."
-run_container "$CHEM_CONTAINER_NAME" "$CHEM_HOST_PORT" "$CHEM_MODEL_ID" "$CHEM_MAX_MODEL_LEN" "$CHEM_GPU_MEMORY_UTILIZATION" "$CHEM_EXTRA_ARGS"
+run_container "$CHEM_CONTAINER_NAME" "$CHEM_HOST_PORT" "$CHEM_MODEL_PATH" "$CHEM_MAX_MODEL_LEN" "$CHEM_GPU_MEMORY_UTILIZATION" "$CHEM_EXTRA_ARGS"
 wait_health "$CHEM_HOST_PORT" "$CHEM_CONTAINER_NAME"
 
 # Sleep ChemDFM before loading Gemma so both can coexist on one GPU.
 sleep_model "$CHEM_HOST_PORT"
 
-run_container "$GEMMA_CONTAINER_NAME" "$GEMMA_HOST_PORT" "$GEMMA_MODEL_ID" "$GEMMA_MAX_MODEL_LEN" "$GEMMA_GPU_MEMORY_UTILIZATION" "$GEMMA_EXTRA_ARGS"
+run_container "$GEMMA_CONTAINER_NAME" "$GEMMA_HOST_PORT" "$GEMMA_MODEL_PATH" "$GEMMA_MAX_MODEL_LEN" "$GEMMA_GPU_MEMORY_UTILIZATION" "$GEMMA_EXTRA_ARGS"
 wait_health "$GEMMA_HOST_PORT" "$GEMMA_CONTAINER_NAME"
 
 if [ "$DEFAULT_ACTIVE_MODEL" = "gemma" ]; then
-  active_name="$GEMMA_MODEL_ID"
+  active_name="$GEMMA_MODEL_PATH"
 else
   # Gemma is awake after startup, so sleep it first to free VRAM.
   sleep_model "$GEMMA_HOST_PORT"
   wake_model "$CHEM_HOST_PORT"
-  active_name="$CHEM_MODEL_ID"
+  active_name="$CHEM_MODEL_PATH"
 fi
 
 echo

@@ -20,8 +20,8 @@ Use this for CI/CD-friendly deployment.
 ```bash
 cd /home/m.isangulov@innopolis.ru/vllm_manager
 cp .env.example .env
-# edit .env and set HF_TOKEN
-docker compose up -d --build
+# edit .env and set MinIO credentials
+./start_compose_with_s3.sh
 ```
 
 Services started:
@@ -37,8 +37,9 @@ Startup behavior on single GPU:
 - `bootstrap` waits until ChemDFM is healthy, then puts it to sleep.
 - `gemma-vllm` starts after bootstrap succeeds.
 - manager default active model is `gemma`.
+- both vLLM instances load models from local paths mounted from `${HF_CACHE_DIR}`.
 
-This makes plain `docker compose up -d --build` reach a stable state without manual sleep/wake calls.
+This makes `./start_compose_with_s3.sh` reach a stable state without manual sleep/wake calls.
 
 Compose mode runs manager in a container and routes with internal DNS:
 
@@ -91,9 +92,43 @@ WAIT_TIMEOUT_SECONDS=1200 \
 ```bash
 cd /home/m.isangulov@innopolis.ru/vllm_manager
 cp .env.example .env
-# set HF_TOKEN in .env
-docker compose up -d --build
+# set MinIO credentials and S3 prefixes in .env
+./start_compose_with_s3.sh
 ./healthcheck_gate.sh
+```
+
+### Deployment checklist (new server)
+
+```bash
+cd /path/to/vllm_manager
+cp .env.example .env
+# set MINIO_URL, MINIO_ACCESS_KEY, MINIO_SECRET_KEY, MINIO_BUCKET, and S3 prefixes
+./start_compose_with_s3.sh
+```
+
+Notes:
+
+- `start_compose_with_s3.sh` auto-installs MinIO client to `vllm_manager/.bin/minio-mc` when missing.
+- If your environment forbids downloading binaries at runtime, preinstall MinIO client and set `MC_BIN=/absolute/path/to/minio-mc`.
+
+### Upload models to S3 (manual, one-time per update)
+
+Models are not baked into Docker images. Upload model folders to your MinIO/S3 bucket:
+
+```bash
+cd /home/m.isangulov@innopolis.ru/vllm_manager
+cp .env.example .env
+# configure MINIO_* and *_S3_PREFIX in .env
+
+bash scripts/upload_models_to_s3.sh /path/to/chemdfm_model chemdfm
+bash scripts/upload_models_to_s3.sh /path/to/gemma_model gemma
+```
+
+### Download models from S3 (pre-start step)
+
+```bash
+cd /home/m.isangulov@innopolis.ru/vllm_manager
+bash scripts/download_models_from_s3.sh
 ```
 
 ## 1) Install dependencies
@@ -111,19 +146,23 @@ cd /home/m.isangulov@innopolis.ru/vllm_manager
 uv sync
 ```
 
+MinIO client is auto-installed by the scripts into `vllm_manager/.bin/minio-mc` if missing.
+You can still override with `MC_BIN=/absolute/path/to/minio-mc`.
+
 ## 2) Start both vLLM containers (sleep-mode enabled)
 
 ```bash
 cd /home/m.isangulov@innopolis.ru
-HF_TOKEN="your_hf_token" ./vllm_manager/start_vllm_pair.sh
+./vllm_manager/scripts/download_models_from_s3.sh
+./vllm_manager/start_vllm_pair.sh
 ```
 
 Useful env overrides:
 
 ```bash
-# Example: set Gemma checkpoint and keep Gemma active
-HF_TOKEN="your_hf_token" \
-GEMMA_MODEL_ID="RedHatAI/gemma-3-27b-it-quantized.w8a8" \
+# Example: override local paths and keep Gemma active
+CHEM_MODEL_PATH="/root/.cache/huggingface/chemdfm" \
+GEMMA_MODEL_PATH="/root/.cache/huggingface/gemma" \
 DEFAULT_ACTIVE_MODEL=gemma \
 ./vllm_manager/start_vllm_pair.sh
 ```
