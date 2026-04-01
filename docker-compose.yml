@@ -95,8 +95,8 @@ services:
         --dtype auto
         --trust-remote-code
         --enable-sleep-mode
-        --gpu-memory-utilization ${GEMMA_GPU_MEMORY_UTILIZATION:-0.50}
-        --max-model-len ${GEMMA_MAX_MODEL_LEN:-1024}
+        --gpu-memory-utilization ${GEMMA_GPU_MEMORY_UTILIZATION:-0.90}
+        --max-model-len ${GEMMA_MAX_MODEL_LEN:-4096}
 
   manager:
     build:
@@ -112,6 +112,7 @@ services:
       MANAGER_PORT: "8010"
       ACTIVE_MODEL_KEY: "${ACTIVE_MODEL_KEY:-gemma}"
       CONTROL_TIMEOUT_SECONDS: "${CONTROL_TIMEOUT_SECONDS:-300}"
+      MAX_COMPLETION_TOKENS: "${MAX_COMPLETION_TOKENS:-1600}"
       MANAGE_DOCKER: "false"
       CHEM_MODEL_ID: "${CHEM_MODEL_ID:-OpenDFM/ChemDFM-R-14B}"
       GEMMA_MODEL_ID: "${GEMMA_MODEL_ID:-RedHatAI/gemma-3-27b-it-quantized.w8a8}"

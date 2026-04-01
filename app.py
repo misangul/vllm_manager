@@ -68,6 +68,7 @@ async def _model_runtime_status(model_key: str) -> Dict[str, Any]:
         "key": model.key,
         "model_id": model.model_id,
         "base_url": model.base_url,
+        "configured_max_model_len": model.max_model_len,
         "container": _container_status_payload(container_status),
         "healthy": health,
         "sleeping": sleeping,
@@ -105,6 +106,9 @@ async def manager_status() -> Dict[str, Any]:
     gemma = await _model_runtime_status("gemma")
     return {
         "active_model_key": state.active_model_key,
+        "manager_limits": {
+            "max_completion_tokens": settings.max_completion_tokens,
+        },
         "models": {
             "chemdfm": chem,
             "gemma": gemma,
@@ -186,6 +190,22 @@ async def proxy_chat_completions(
     # Keep manager endpoint stable: always target currently active backend model.
     payload = dict(payload)
     payload["model"] = active.model_id
+    if settings.max_completion_tokens is not None:
+        max_tokens_limit = settings.max_completion_tokens
+        requested_max_tokens = payload.get("max_tokens")
+        if requested_max_tokens is None:
+            payload["max_tokens"] = max_tokens_limit
+        else:
+            try:
+                requested_max_tokens = int(requested_max_tokens)
+            except (TypeError, ValueError) as err:
+                raise HTTPException(
+                    status_code=400,
+                    detail="max_tokens must be an integer when MAX_COMPLETION_TOKENS is enabled",
+                ) from err
+            if requested_max_tokens <= 0:
+                raise HTTPException(status_code=400, detail="max_tokens must be positive")
+            payload["max_tokens"] = min(requested_max_tokens, max_tokens_limit)
     headers = await _prepare_headers(authorization)
     try:
         response = await state.vllm_client.proxy_json_post(

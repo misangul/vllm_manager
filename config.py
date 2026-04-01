@@ -37,11 +37,20 @@ class Settings:
     stack_ulimit: str
     hf_token: str
     control_timeout_seconds: int
+    max_completion_tokens: int | None
     manage_docker: bool
     models: Dict[str, ManagedModel]
 
     @classmethod
     def from_env(cls) -> "Settings":
+        raw_max_completion_tokens = os.getenv("MAX_COMPLETION_TOKENS", "").strip()
+        max_completion_tokens: int | None = None
+        if raw_max_completion_tokens:
+            parsed_max_completion_tokens = int(raw_max_completion_tokens)
+            if parsed_max_completion_tokens <= 0:
+                raise ValueError("MAX_COMPLETION_TOKENS must be a positive integer when set")
+            max_completion_tokens = parsed_max_completion_tokens
+
         chem_model = ManagedModel(
             key="chemdfm",
             model_id=os.getenv("CHEM_MODEL_ID", "OpenDFM/ChemDFM-R-14B"),
@@ -58,8 +67,8 @@ class Settings:
             container_name=os.getenv("GEMMA_CONTAINER_NAME", "gemma-vllm-managed"),
             host_port=int(os.getenv("GEMMA_HOST_PORT", "8012")),
             base_url_override=os.getenv("GEMMA_BASE_URL", ""),
-            max_model_len=int(os.getenv("GEMMA_MAX_MODEL_LEN", "1024")),
-            gpu_memory_utilization=float(os.getenv("GEMMA_GPU_MEMORY_UTILIZATION", "0.50")),
+            max_model_len=int(os.getenv("GEMMA_MAX_MODEL_LEN", "4096")),
+            gpu_memory_utilization=float(os.getenv("GEMMA_GPU_MEMORY_UTILIZATION", "0.90")),
             extra_args=os.getenv("GEMMA_EXTRA_ARGS", ""),
         )
         models = {
@@ -83,6 +92,7 @@ class Settings:
             stack_ulimit=os.getenv("VLLM_STACK_ULIMIT", "67108864"),
             hf_token=os.getenv("HF_TOKEN", ""),
             control_timeout_seconds=int(os.getenv("CONTROL_TIMEOUT_SECONDS", "300")),
+            max_completion_tokens=max_completion_tokens,
             manage_docker=os.getenv("MANAGE_DOCKER", "true").lower() in ("1", "true", "yes"),
             models=models,
         )

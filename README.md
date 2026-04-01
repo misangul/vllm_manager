@@ -47,12 +47,13 @@ Compose mode runs manager in a container and routes with internal DNS:
 - `GEMMA_BASE_URL=http://gemma-vllm:8000`
 
 In this mode, manager uses `MANAGE_DOCKER=false` (Compose controls container lifecycle).
-Default memory profile is tuned to keep active model near ~40GB VRAM:
+Default memory profile uses a high-utilization Gemma profile on A100 80GB:
 
 - `CHEM_GPU_MEMORY_UTILIZATION=0.50`
-- `GEMMA_GPU_MEMORY_UTILIZATION=0.50`
+- `GEMMA_GPU_MEMORY_UTILIZATION=0.90`
 - `CHEM_MAX_MODEL_LEN=4096`
-- `GEMMA_MAX_MODEL_LEN=1024`
+- `GEMMA_MAX_MODEL_LEN=4096`
+- `MAX_COMPLETION_TOKENS=1600` (manager-side cap; requests above this are clipped)
 
 ### Compose operations
 
@@ -184,6 +185,8 @@ curl -sS http://127.0.0.1:8010/health
 curl -sS http://127.0.0.1:8010/active-model
 curl -sS http://127.0.0.1:8010/status
 ```
+
+`/status` includes per-model `configured_max_model_len` and manager `max_completion_tokens`.
 
 ## 5) Switch model
 
